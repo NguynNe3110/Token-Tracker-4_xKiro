@@ -1,0 +1,1 @@
+// This file is intentionally deleted. Web scraping is no longer used.

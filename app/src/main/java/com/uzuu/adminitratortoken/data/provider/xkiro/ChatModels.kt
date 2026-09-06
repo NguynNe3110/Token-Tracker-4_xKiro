@@ -1,0 +1,1 @@
+// This file is intentionally deleted. Chat models are no longer needed.
