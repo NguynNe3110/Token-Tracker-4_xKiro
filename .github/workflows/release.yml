@@ -1,0 +1,39 @@
+name: Build & Release APK
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Lấy source code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Cài Flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+
+      # 3. Lấy dependencies
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # 4. Build APK
+      - name: Build APK
+        run: flutter build apk --release
+
+      # 5. Tạo GitHub Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "build-${{ github.run_number }}"
+          name: "Build ${{ github.run_number }}"
+          files: build/app/outputs/flutter-apk/app-release.apk
