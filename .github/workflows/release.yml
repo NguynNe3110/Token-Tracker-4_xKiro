@@ -14,21 +14,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Cài Flutter
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      # 2. Cài Java
+      - name: Setup JDK
+        uses: actions/setup-java@v4
         with:
-          flutter-version: '3.44.1'
-          channel: stable
-          cache: true
+          distribution: temurin
+          java-version: '17'
 
-      # 3. Lấy dependencies
-      - name: Flutter pub get
-        run: flutter pub get
+      # 3. Cấp quyền chạy Gradle
+      - name: Grant execute permission
+        run: chmod +x gradlew
 
-      # 4. Build APK
+      # 4. Build APK Release
       - name: Build APK
-        run: flutter build apk --release
+        run: ./gradlew assembleRelease
 
       # 5. Tạo GitHub Release
       - name: Create Release
@@ -36,4 +35,4 @@ jobs:
         with:
           tag_name: "build-${{ github.run_number }}"
           name: "Build ${{ github.run_number }}"
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: app/build/outputs/apk/release/app-release.apk

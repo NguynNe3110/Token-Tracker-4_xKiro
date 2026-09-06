@@ -2,9 +2,11 @@ package com.uzuu.adminitratortoken.ui.screens.dashboard
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.uzuu.adminitratortoken.data.local.entity.AccountEntity
+import com.uzuu.adminitratortoken.data.repository.AccountImportUseCase
 import com.uzuu.adminitratortoken.data.repository.TokenRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -40,7 +43,8 @@ data class DashboardUiState(
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     application: Application,
-    private val repository: TokenRepository
+    private val repository: TokenRepository,
+    private val accountImportUseCase: AccountImportUseCase
 ) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences("dashboard_prefs", Context.MODE_PRIVATE)
@@ -88,6 +92,8 @@ class DashboardViewModel @Inject constructor(
         val newValue = !_autoRefreshEnabled.value
         _autoRefreshEnabled.value = newValue
         prefs.edit().putBoolean(KEY_AUTO_REFRESH, newValue).apply()
+        autoRefreshJob?.cancel()
+        autoRefreshJob = null
         if (newValue) startAutoRefreshLoop() else stopAutoRefreshLoop()
     }
 
@@ -124,12 +130,13 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun startAutoRefreshLoop() {
-        stopAutoRefreshLoop()
+          stopAutoRefreshLoop()
         autoRefreshJob = viewModelScope.launch {
             while (_autoRefreshEnabled.value) {
                 _secondsUntilNextRefresh.value = REFRESH_INTERVAL_SECONDS
                 while (_secondsUntilNextRefresh.value > 0 && _autoRefreshEnabled.value) {
-//                    delay(1000)
+                    delay(1000)
+                    ensureActive()
                     _secondsUntilNextRefresh.value -= 1
                 }
                 if (_autoRefreshEnabled.value) refresh()
@@ -155,6 +162,31 @@ class DashboardViewModel @Inject constructor(
         cal.set(java.util.Calendar.SECOND, 0)
         cal.set(java.util.Calendar.MILLISECOND, 0)
         return cal.timeInMillis
+    }
+
+    // --- Import from file ---
+
+    private val _importResultMessage = MutableStateFlow<String?>(null)
+    val importResultMessage: StateFlow<String?> = _importResultMessage.asStateFlow()
+
+    fun clearImportResult() {
+        _importResultMessage.value = null
+    }
+
+    fun importFromFile(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val result = accountImportUseCase.importFromFile(context, uri)
+                val msg = buildString {
+                    append("Imported: ${result.successCount}")
+                    if (result.skippedCount > 0) append(", Skipped: ${result.skippedCount}")
+                    if (result.errorCount > 0) append(", Errors: ${result.errorCount}")
+                }
+                _importResultMessage.value = msg
+            } catch (e: Exception) {
+                _importResultMessage.value = "Import failed: ${e.message}"
+            }
+        }
     }
 
     companion object {

@@ -14,10 +14,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -36,8 +38,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.uzuu.adminitratortoken.data.local.entity.AccountEntity
 
@@ -49,6 +54,15 @@ fun AccountListScreen(
     viewModel: AccountListViewModel = hiltViewModel()
 ) {
     val accounts by viewModel.accounts.collectAsState()
+    val importResult by viewModel.importResult.collectAsState()
+    val isImporting by viewModel.isImporting.collectAsState()
+    val context = LocalContext.current
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.importFromFile(context, it) }
+    }
 
     Scaffold(
         topBar = {
@@ -57,6 +71,11 @@ fun AccountListScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { importLauncher.launch("text/plain") }) {
+                        Icon(Icons.Default.FileOpen, contentDescription = "Import from file")
                     }
                 }
             )
@@ -67,7 +86,23 @@ fun AccountListScreen(
             }
         }
     ) { paddingValues ->
-        if (accounts.isEmpty()) {
+        // Import result dialog
+        importResult?.let { result ->
+            ImportResultDialog(
+                result = result,
+                onDismiss = { viewModel.clearImportResult() }
+            )
+        }
+
+        // Loading overlay during import
+        if (isImporting) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (accounts.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -197,6 +232,40 @@ private fun RenameDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ImportResultDialog(
+    result: AccountListViewModel.ImportResult,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Import Complete") },
+        text = {
+            Column {
+                Text("✅ Imported: ${result.successCount}")
+                if (result.skippedCount > 0) {
+                    Text("⏭️ Skipped (duplicate): ${result.skippedCount}")
+                }
+                if (result.errorCount > 0) {
+                    Text("❌ Errors: ${result.errorCount}")
+                    result.errors.forEach { error ->
+                        Text(
+                            text = "• $error",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("OK")
             }
         }
     )

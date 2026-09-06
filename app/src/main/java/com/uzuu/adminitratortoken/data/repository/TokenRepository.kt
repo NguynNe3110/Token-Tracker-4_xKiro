@@ -23,6 +23,10 @@ class TokenRepository @Inject constructor(
 
     suspend fun insertAccount(account: AccountEntity): Long = accountDao.insertAccount(account)
 
+    suspend fun insertAccounts(accounts: List<AccountEntity>): List<Long> {
+        return accounts.map { accountDao.insertAccount(it) }
+    }
+
     suspend fun updateAccount(account: AccountEntity) = accountDao.updateAccount(account)
 
     suspend fun deleteAccount(account: AccountEntity) {
