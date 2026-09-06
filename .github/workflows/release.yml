@@ -5,34 +5,38 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Lấy source code
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Cài Java
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      # 3. Cấp quyền chạy Gradle
       - name: Grant execute permission
         run: chmod +x gradlew
 
-      # 4. Build APK Release
       - name: Build APK
         run: ./gradlew assembleRelease
 
-      # 5. Tạo GitHub Release
+      # Kiểm tra APK thực tế nằm ở đâu
+      - name: Find APK
+        run: find . -type f -name "*.apk"
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "build-${{ github.run_number }}"
           name: "Build ${{ github.run_number }}"
-          files: app/build/outputs/apk/release/app-release.apk
+          files: |
+            **/build/outputs/apk/release/*.apk
