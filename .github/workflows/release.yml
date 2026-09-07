@@ -28,6 +28,7 @@ jobs:
       - name: Build APK
         run: ./gradlew assembleDebug
 
+
       - name: Find APK
         run: find . -type f -name "*.apk"
 
