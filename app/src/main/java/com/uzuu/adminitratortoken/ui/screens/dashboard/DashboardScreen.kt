@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -23,8 +24,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -41,13 +44,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import java.text.DecimalFormat
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -131,16 +137,17 @@ private fun DashboardContent(
         if (state.accountUsages.isEmpty()) {
             item { EmptyAccountsHint() }
         } else {
-            item {
-                Text(
-                    text = "Today's Usage",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-            }
-            items(state.accountUsages, key = { it.account.id }) { usage ->
-                AccountUsageCard(usage = usage)
+            itemsIndexed(
+                items = state.accountUsages,
+                key = { _, usage -> usage.account.id }
+            ) { index, usage ->
+                AccountUsageRow(usage = usage)
+                if (index < state.accountUsages.lastIndex) {
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+                }
             }
         }
     }
@@ -212,50 +219,68 @@ private fun EmptyAccountsHint() {
 }
 
 @Composable
-private fun AccountUsageCard(usage: AccountUsage) {
+private fun AccountUsageRow(usage: AccountUsage) {
+    // Calculate usage percentage for progress bar
     val percent = if (usage.limitPerDay > 0) {
-        (usage.usedToday.toFloat() / usage.limitPerDay).coerceIn(0f, 1f)
+        usage.usedToday.toFloat() / usage.limitPerDay
     } else 0f
     val progressColor = getProgressColor(percent)
-    val percentText = if (usage.limitPerDay > 0) {
-        "%.1f%%".format(usage.usedToday.toFloat() / usage.limitPerDay * 100)
-    } else "N/A"
 
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
+    // Format usage as "used / limitM" with dot thousand separators (e.g., "3.232.123 / 5M")
+    val usageText = if (usage.limitPerDay > 0) {
+        val limitInM = usage.limitPerDay / 1_000_000
+        "${formatNumber(usage.usedToday)}/${formatNumber(limitInM)}M"
+    } else {
+        "N/A"
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        // Top row: account name and usage text
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = usage.account.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${formatNumber(usage.usedToday.toInt())} / ${formatNumber(usage.limitPerDay.toInt())} ($percentText)",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Box(
+                text = usageText,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction = percent.coerceIn(0f, 1f))
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(progressColor)
-                )
-            }
+            )
         }
+//        Spacer(modifier = Modifier.height(4.dp))
+        // Bottom row: progress bar
+        LinearProgressIndicator(
+            progress = { percent.coerceIn(0f, 1f) },
+            color = progressColor,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+        )
     }
 }
+
+private val numberFormat = DecimalFormat("#,###").apply {
+    val symbols = decimalFormatSymbols
+    symbols.groupingSeparator = '.'
+    decimalFormatSymbols = symbols
+}
+
+private fun formatNumber(value: Long): String = numberFormat.format(value)
 
 private fun getProgressColor(percent: Float): Color {
     val p = (percent * 100).coerceIn(0f, 100f)
@@ -273,10 +298,4 @@ private fun getProgressColor(percent: Float): Color {
         p <= 91f  -> Color(0xFFD63031)
         else      -> Color(0xFFC0392B)
     }
-}
-
-private fun formatNumber(value: Int): String = when {
-    value >= 1_000_000 -> "%.1fM".format(value / 1_000_000.0)
-    value >= 1_000 -> "%.1fK".format(value / 1_000.0)
-    else -> value.toString()
 }
