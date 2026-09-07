@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -27,9 +26,8 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build APK
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleDebug
 
-      # Kiểm tra APK thực tế nằm ở đâu
       - name: Find APK
         run: find . -type f -name "*.apk"
 
@@ -39,4 +37,4 @@ jobs:
           tag_name: "build-${{ github.run_number }}"
           name: "Build ${{ github.run_number }}"
           files: |
-            **/build/outputs/apk/release/*.apk
+            **/build/outputs/apk/debug/*.apk
